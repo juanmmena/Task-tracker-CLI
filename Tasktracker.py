@@ -1,57 +1,152 @@
-import sys
+#!/usr/bin/env python
+from datetime import datetime
+import argparse
+import json
+import os
 
-tasks = []
+TASKS_FILE = "tasks.json"
 
-def show_menu():
-    print("\nTodo List App")
-    print("1. View tasks")
-    print("2. Add task")
-    print("3. Remove task")
-    print("4. Exit")
+# Cargar tareas desde archivo
+def load_tasks():
+    if os.path.exists(TASKS_FILE):
+        with open(TASKS_FILE, "r") as f:
+            return json.load(f)
+    return []
 
-def view_tasks():
+# Guardar tareas en archivo
+def save_tasks(tasks):
+    with open(TASKS_FILE, "w") as f:
+        json.dump(tasks, f, indent=4)
+
+# Obtener el siguiente ID disponible
+def get_next_id(tasks):
     if not tasks:
-        print("\nNo tasks available.")
-    else:
-        print("\nTasks:")
-        for i, task in enumerate(tasks, 1):
-            print(f"{i}. {task}")
+        return 1
+    return max(task["id"] for task in tasks) + 1
 
+# Agregar tarea
 def add_task():
-    task = input("\nEnter the task: ").strip()
-    if task:
+    tasks = load_tasks()
+    task_id = get_next_id(tasks)
+    description = input("Enter task description: ").strip()
+    if description:
+        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        task = {
+            "id": task_id,
+            "description": description,
+            "status": "todo",
+            "createdAt": now,
+            "updatedAt": now
+        }
         tasks.append(task)
-        print("Task added.")
+        save_tasks(tasks)
+        print(f"✅ Task added with ID: {task['id']}")
     else:
-        print("Task cannot be empty.")
+        print("⚠️ Description cannot be empty.")
 
-def remove_task():
-    view_tasks()
+# Actualizar tarea
+def update_task():
+    tasks = load_tasks()
     try:
-        task_num = int(input("\nEnter the task number to remove: "))
-        if 1 <= task_num <= len(tasks):
-            removed_task = tasks.pop(task_num - 1)
-            print(f"Removed task: {removed_task}")
-        else:
-            print("Invalid task number.")
+        task_id = int(input("Enter the task ID to update: "))
+        for task in tasks:
+            if task["id"] == task_id:
+                new_description = input("Enter the new description: ").strip()
+                if new_description:
+                    task["description"] = new_description
+                    task["updatedAt"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    save_tasks(tasks)
+                    print("✅ Task updated successfully.")
+                else:
+                    print("⚠️ Description cannot be empty.")
+                return
+        print("⚠️ Task ID not found.")
     except ValueError:
-        print("Please enter a valid number.")
+        print("⚠️ Please enter a valid task ID.")
 
+# Eliminar tarea
+def remove_task():
+    tasks = load_tasks()
+    try:
+        task_id = int(input("Enter the task ID to remove: "))
+        for task in tasks:
+            if task["id"] == task_id:
+                tasks.remove(task)
+                save_tasks(tasks)
+                print(f"✅ Removed task: {task['description']}")
+                return
+        print("⚠️ Task ID not found.")
+    except ValueError:
+        print("⚠️ Please enter a valid task ID.")
+
+# Cambiar estado
+def mark_task_status():
+    tasks = load_tasks()
+    try:
+        task_id = int(input("Enter the task ID to update status: "))
+        for task in tasks:
+            if task["id"] == task_id:
+                print(f"Current status: {task['status']}")
+                new_status = input("Enter new status (todo, in-progress, done): ").strip().lower()
+                if new_status in ["todo", "in-progress", "done"]:
+                    task["status"] = new_status
+                    task["updatedAt"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    save_tasks(tasks)
+                    print(f"✅ Task marked as {new_status}.")
+                else:
+                    print("⚠️ Invalid status.")
+                return
+        print("⚠️ Task ID not found.")
+    except ValueError:
+        print("⚠️ Please enter a valid task ID.")
+
+# Ver todas las tareas
+def view_tasks():
+    tasks = load_tasks()
+    if not tasks:
+        print("📭 No tasks available.")
+    else:
+        print("\n📋 Task List:")
+        for task in tasks:
+            print(f"- ID: {task['id']}, Description: {task['description']}, "
+                  f"Status: {task['status']}, Created At: {task['createdAt']}, "
+                  f"Updated At: {task['updatedAt']}")
+
+# Filtrar por estado
+def list_tasks_by_status():
+    tasks = load_tasks()
+    status = input("Enter the status to filter by (todo, in-progress, done): ").strip().lower()
+    filtered = [task for task in tasks if task["status"] == status]
+    if filtered:
+        print(f"\n📂 Tasks with status '{status}':")
+        for task in filtered:
+            print(f"- ID: {task['id']}, Description: {task['description']}, "
+                  f"Created At: {task['createdAt']}, Updated At: {task['updatedAt']}")
+    else:
+        print(f"📭 No tasks with status '{status}'.")
+
+# Menú principal
 def main():
-    while True:
-        show_menu()
-        choice = input("\nEnter your choice: ").strip()
-        if choice == "1":
-            view_tasks()
-        elif choice == "2":
-            add_task()
-        elif choice == "3":
-            remove_task()
-        elif choice == "4":
-            print("Exiting the app. Goodbye!")
-            sys.exit()
+    parser = argparse.ArgumentParser(description="🛠 Task Tracker CLI")
+    parser.add_argument("command", help="Command to execute", choices=[
+        "add", "update", "delete", "mark", "list"
+    ])
+    args = parser.parse_args()
+
+    if args.command == "add":
+        add_task()
+    elif args.command == "update":
+        update_task()
+    elif args.command == "delete":
+        remove_task()
+    elif args.command == "mark":
+        mark_task_status()
+    elif args.command == "list":
+        choice = input("Do you want to filter by status? (y/n): ").strip().lower()
+        if choice == "y":
+            list_tasks_by_status()
         else:
-            print("Invalid choice. Please try again.")
+            view_tasks()
 
 if __name__ == "__main__":
     main()
